@@ -4,8 +4,7 @@ import select
 
 PROXY_HOST = 'localhost'
 PROXY_PORT = 3282
-BUFFER_SIZE = 262144
-delay = 0.0001
+BUFFER_SIZE = 131072
 
 class Proxy:
   sockets = []
@@ -24,7 +23,8 @@ class Proxy:
       readable, writable, exceptional = select.select(self.sockets, [], [])
       for socket in readable:
         self.current_socket = socket
-
+        if self.current_socket not in self.sockets:
+          continue
         if self.current_socket is self.server:
           # ready to accept new connection
           self.accept_current();
@@ -33,7 +33,7 @@ class Proxy:
           if self.data:
             # current socket has data
             self.receive_current();
-          else:
+          elif self.current_socket in self.clients:
             # close connection with current socket
             self.close_current();
 
@@ -45,7 +45,6 @@ class Proxy:
     self.forward[connection] = None;
 
   def receive_current(self):
-    assert(self.current_socket is not self.server)
     if self.current_socket in self.clients:
       # current socket is a client
       """
@@ -84,7 +83,7 @@ class Proxy:
       print "------\n"
       """
       # parse data as HTTP response
-      response = parser.Request(self.data)
+      response = parser.Response(self.data)
 
       # TODO: modify data
 
@@ -93,24 +92,23 @@ class Proxy:
 
 
   def close_current(self):
-    if self.current_socket in self.clients:
-      print self.current_socket.getpeername(), "has disconnected"
+    print self.current_socket.getpeername(), "has disconnected"
 
-      # remove from clients and sockets list
-      self.sockets.remove(self.current_socket)
-      self.clients.remove(self.current_socket)
+    # remove from clients and sockets list
+    self.sockets.remove(self.current_socket)
+    self.clients.remove(self.current_socket)
 
-      # close current socket
-      self.current_socket.close()
-      
-      # close remote socket
-      remote_socket = self.forward[self.current_socket]
-      if remote_socket:
-        self.sockets.remove(remote_socket)
-        remote_socket.close()
-        del self.forward[remote_socket]
+    # close current socket
+    self.current_socket.close()
+    
+    # close remote socket
+    remote_socket = self.forward[self.current_socket]
+    if remote_socket:
+      self.sockets.remove(remote_socket)
+      remote_socket.close()
+      del self.forward[remote_socket]
 
-      del self.forward[self.current_socket]
+    del self.forward[self.current_socket]
 
 
 
