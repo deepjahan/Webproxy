@@ -4,6 +4,7 @@ import select
 import time
 import sys
 import Queue
+from urlparse import urlparse
 
 
 PROXY_HOST = 'localhost'
@@ -71,18 +72,18 @@ class Proxy:
             # close connection with current socket
             self.close_current(self.current_socket)
       
-      for socket in writable:
+      for s in writable:
         try:
           # try to get next message
-          next_msg = self.message_queues[socket].get_nowait()
+          next_msg = self.message_queues[s].get_nowait()
         except:
           # no messages waiting so stop checking for writability
-          self.output_sockets.remove(socket)
-          if self.forward[socket] is None:
+          self.output_sockets.remove(s)
+          if self.forward[s] is None:
             # close current if forward is closed
-            self.close_current(self.current_socket)
+            self.close_current(s)
         else:
-          socket.send(next_msg)
+          s.send(next_msg)
 
   def accept_current(self):
     connection, clientAddress = self.current_socket.accept()
