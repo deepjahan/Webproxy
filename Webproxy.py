@@ -7,6 +7,7 @@ from urlparse import urlparse
 PROXY_HOST = 'localhost'
 PROXY_PORT = 3282
 BUFFER_SIZE = 65536
+FAKE_502 = 'GET /~a0126509/502.php HTTP/1.1\r\nHost: cs2102-i.comp.nus.edu.sg\r\nConnection: close\r\n\r\n' 
 
 class Proxy:
   sockets = []
@@ -47,6 +48,8 @@ class Proxy:
     self.forward[connection] = None;
 
   def receive_current(self):
+    print self.data
+
     if self.current_socket in self.clients:
       # current socket is a client
       #"""
@@ -76,21 +79,29 @@ class Proxy:
         remote_socket = None
 
       if remote_socket is None:
-        remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        remote_socket.connect((remoteHost, remotePort))
-        
-        # add connection between client and remote socket
-        self.forward[self.current_socket] = remote_socket
-        self.forward[remote_socket] = self.current_socket
-        self.sockets.append(remote_socket)
+        try:
+          remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+          remote_socket.connect((remoteHost, remotePort))
+          
+          # add connection between client and remote socket
+          self.forward[self.current_socket] = remote_socket
+          self.forward[remote_socket] = self.current_socket
+          self.sockets.append(remote_socket)
+        except:
+          # send 502 message
+          remote_socket.close()
+          self.data = FAKE_502
+          self.receive_current()
+          return;
+
     else:
       # current socket is remote socket
-      """
+      #"""
       print "\nReceive from remote"
       print "------"
       print self.data
       print "------\n"
-      """
+      #"""
       # parse data as HTTP response
       response = parser.Response(self.data)
 
