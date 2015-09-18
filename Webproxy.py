@@ -2,6 +2,7 @@ import socket
 import parser
 import select
 import time
+import sys
 from urlparse import urlparse
 
 PROXY_HOST = 'localhost'
@@ -48,16 +49,15 @@ class Proxy:
     self.forward[connection] = None;
 
   def receive_current(self):
-    print self.data
 
     if self.current_socket in self.clients:
       # current socket is a client
-      #"""
+      """
       print "\nReceive from client"
       print "------"
       print self.data
       print "------\n"
-      #"""
+      """
       # parse data as HTTP request
       request = parser.Request(self.data)
 
@@ -96,12 +96,12 @@ class Proxy:
 
     else:
       # current socket is remote socket
-      #"""
+      """
       print "\nReceive from remote"
       print "------"
       print self.data
       print "------\n"
-      #"""
+      """
       # parse data as HTTP response
       response = parser.Response(self.data)
 
@@ -134,5 +134,7 @@ class Proxy:
 
 
 if __name__ == '__main__':
+  if len(sys.argv) == 2:
+    PROXY_PORT = int(sys.argv[1])
   proxy = Proxy(PROXY_HOST, PROXY_PORT)
   proxy.run();
