@@ -2,6 +2,7 @@ import socket
 import parser
 import select
 import time
+from urlparse import urlparse
 
 PROXY_HOST = 'localhost'
 PROXY_PORT = 3282
@@ -57,8 +58,14 @@ class Proxy:
       # parse data as HTTP request
       request = parser.Request(self.data)
 
-      remoteHost = request.headers['host']
-      remotePort = 80 # TODO: handle different port
+      # parse host
+      hostUrl = 'http://' + request.headers['host']
+      url = urlparse(hostUrl)
+
+      # get hostname and port
+      remoteHost = url.hostname
+      remotePort = url.port or 80
+
       # remove existing remote socket
       remote_socket = self.forward[self.current_socket]
       
