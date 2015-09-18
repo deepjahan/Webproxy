@@ -1,6 +1,10 @@
 from BaseHTTPServer import BaseHTTPRequestHandler
 from StringIO import StringIO
 from httplib import HTTPResponse
+from urlparse import urlparse
+from wsgiref.handlers import format_date_time
+from datetime import datetime
+from time import mktime
 
 class Request(BaseHTTPRequestHandler):
     def __init__(self, request_text):
@@ -24,6 +28,25 @@ class Response(HTTPResponse):
     source = FakeSocket(response_str)
     HTTPResponse.__init__(self, source)
     self.begin()
+
+def get502():
+  HTTP_RESPONSE_502 = """HTTP/1.0 502 Bad Gateway
+  Date: %s
+  Server: Apache/2.2.15 (CentOS)
+  X-Powered-By: PHP/5.6.4
+  Content-Length: 0
+  Connection: close
+  Content-Type: text/html; charset=UTF-8
+
+  """
+  now = datetime.now()
+  stamp = mktime(now.timetuple())
+  return HTTP_RESPONSE_502 % (format_date_time(stamp))
+
+from urlparse import urlparse
+from wsgiref.handlers import format_date_time
+from datetime import datetime
+from time import mktime
 
 # Request
 # error_code 
