@@ -8,7 +8,29 @@ from urlparse import urlparse
 PROXY_HOST = 'localhost'
 PROXY_PORT = 3282
 BUFFER_SIZE = 65536
-FAKE_502 = 'GET /~a0126509/502.php HTTP/1.1\r\nHost: cs2102-i.comp.nus.edu.sg\r\nConnection: close\r\n\r\n' 
+
+from wsgiref.handlers import format_date_time
+from datetime import datetime
+from time import mktime
+
+def get502():
+  HTTP_RESPONSE_502 = """HTTP/1.0 502 Bad Gateway
+Date: %s
+Server: Apache/2.2.15 (CentOS)
+X-Powered-By: PHP/5.6.4
+Content-Length: 0
+Connection: close
+Content-Type: text/html; charset=UTF-8
+"""
+  now = datetime.now()
+  stamp = mktime(now.timetuple())
+  return HTTP_RESPONSE_502 % (format_date_time(stamp))
+
+
+
+now = datetime.now()
+stamp = mktime(now.timetuple())
+print format_date_time(stamp) 
 
 class Proxy:
   sockets = []
@@ -52,12 +74,12 @@ class Proxy:
 
     if self.current_socket in self.clients:
       # current socket is a client
-      """
-      print "\nReceive from client"
+      
+      print "\nReceive from client", self.current_socket.getpeername()
+      
       print "------"
       print self.data
       print "------\n"
-      """
       # parse data as HTTP request
       request = parser.Request(self.data)
 
@@ -88,16 +110,17 @@ class Proxy:
           self.forward[remote_socket] = self.current_socket
           self.sockets.append(remote_socket)
         except:
-          # send 502 message
+          # host unreachable, send 502 error message
           remote_socket.close()
-          self.data = FAKE_502
-          self.receive_current()
+          self.current_socket.send(get502())
+          self.close_current()
           return;
 
     else:
       # current socket is remote socket
+      
+      print "\nReceive from remote", self.current_socket.getpeername(), ' requested by ', self.forward[self.current_socket].getpeername()
       """
-      print "\nReceive from remote"
       print "------"
       print self.data
       print "------\n"
