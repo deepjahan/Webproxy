@@ -1,10 +1,11 @@
 import socket
 import parser
 import select
+import time
 
 PROXY_HOST = 'localhost'
 PROXY_PORT = 3282
-BUFFER_SIZE = 131072
+BUFFER_SIZE = 65536
 
 class Proxy:
   sockets = []
@@ -23,22 +24,22 @@ class Proxy:
       readable, writable, exceptional = select.select(self.sockets, [], [])
       for socket in readable:
         self.current_socket = socket
-        if self.current_socket not in self.sockets:
-          continue
         if self.current_socket is self.server:
           # ready to accept new connection
-          self.accept_current();
-        else:
+          self.accept_current()
+        elif self.current_socket in self.sockets:
           self.data = self.current_socket.recv(BUFFER_SIZE)
           if self.data:
             # current socket has data
-            self.receive_current();
-          elif self.current_socket in self.clients:
+            self.receive_current()
+          else:
             # close connection with current socket
-            self.close_current();
+            self.close_current()
+          
 
   def accept_current(self):
     connection, clientAddress = self.current_socket.accept()
+    connection.setblocking(0)
     print clientAddress, "has connected"
     self.sockets.append(connection)
     self.clients.append(connection)
@@ -47,12 +48,12 @@ class Proxy:
   def receive_current(self):
     if self.current_socket in self.clients:
       # current socket is a client
-      """
+      #"""
       print "\nReceive from client"
       print "------"
       print self.data
       print "------\n"
-      """
+      #"""
       # parse data as HTTP request
       request = parser.Request(self.data)
 
@@ -60,16 +61,17 @@ class Proxy:
       remotePort = 80 # TODO: handle different port
       # remove existing remote socket
       remote_socket = self.forward[self.current_socket]
-      """
-      if remote_socket:
+      
+      if remote_socket is not None and remote_socket.getpeername() is not (remoteHost, remotePort):
         self.sockets.remove(remote_socket)
         remote_socket.close()
         del self.forward[remote_socket]
-      """
+        remote_socket = None
+
       if remote_socket is None:
         remote_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         remote_socket.connect((remoteHost, remotePort))
-
+        
         # add connection between client and remote socket
         self.forward[self.current_socket] = remote_socket
         self.forward[remote_socket] = self.current_socket
@@ -96,7 +98,8 @@ class Proxy:
 
     # remove from clients and sockets list
     self.sockets.remove(self.current_socket)
-    self.clients.remove(self.current_socket)
+    if self.current_socket in self.clients:
+      self.clients.remove(self.current_socket)
 
     # close current socket
     self.current_socket.close()
@@ -104,8 +107,8 @@ class Proxy:
     # close remote socket
     remote_socket = self.forward[self.current_socket]
     if remote_socket:
-      self.sockets.remove(remote_socket)
       remote_socket.close()
+      self.sockets.remove(remote_socket)
       del self.forward[remote_socket]
 
     del self.forward[self.current_socket]
