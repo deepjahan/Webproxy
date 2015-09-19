@@ -7,21 +7,23 @@ from datetime import datetime
 from time import mktime
 
 class Request(BaseHTTPRequestHandler):
-    def __init__(self, request_text):
-        self.rfile = StringIO(request_text)
-        self.raw_requestline = self.rfile.readline()
-        self.error_code = self.error_message = None
-        self.parse_request()
+  def __init__(self, request_text='', client=('', 80)):
+    self.rfile = StringIO(request_text)
+    self.raw_requestline = self.rfile.readline()
+    self.wfile = StringIO()
+    self.error_code = self.error_message = None
+    self.client_address = client
+    self.parse_request()
+    self.request_version = 'HTTP/1.0'
 
-    def send_error(self, code, message):
-        self.error_code = code
-        self.error_message = message
+  def log_message(self, format, *args):
+    pass
 
 class FakeSocket():
-    def __init__(self, response_str):
-        self._file = StringIO(response_str)
-    def makefile(self, *args, **kwargs):
-        return self._file
+  def __init__(self, response_str):
+    self._file = StringIO(response_str)
+  def makefile(self, *args, **kwargs):
+    return self._file
 
 class Response(HTTPResponse):
   def __init__(self, response_str):
@@ -29,19 +31,10 @@ class Response(HTTPResponse):
     HTTPResponse.__init__(self, source)
     self.begin()
 
-def get502():
-  HTTP_RESPONSE_502 = """HTTP/1.0 502 Bad Gateway
-  Date: %s
-  Server: Apache/2.2.15 (CentOS)
-  X-Powered-By: PHP/5.6.4
-  Content-Length: 0
-  Connection: close
-  Content-Type: text/html; charset=UTF-8
-
-  """
-  now = datetime.now()
-  stamp = mktime(now.timetuple())
-  return HTTP_RESPONSE_502 % (format_date_time(stamp))
+def get_error(code):
+  request = Request()
+  request.send_error(code)
+  return request.wfile.getvalue()
 
 from urlparse import urlparse
 from wsgiref.handlers import format_date_time
