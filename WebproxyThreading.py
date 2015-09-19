@@ -4,15 +4,31 @@ import SocketServer
 import sys
 import time
 import hashlib
+import re
 from helper import Request, Response
 
 PROXY_HOST = 'localhost'
 PROXY_PORT = 3282
 BUFFER_SIZE = 4096
+CENSOR_FILE = 'censor.txt'
+censor_list = []
+
 
 class ProxyRequestHandler(SocketServer.BaseRequestHandler):
 
   cache_manifest = {}
+
+  def censor(self, file_name):
+    data = ''
+    with open(file_name, 'r') as f:
+      data = f.read()
+      for word_re in censor_list:
+        data = word_re.sub('---', data)
+
+    with open(file_name, 'w') as f:
+      f.seek(0)
+      f.truncate()
+      f.write(data)
 
 
   def get_from_cache(self, md5):
@@ -43,16 +59,31 @@ class ProxyRequestHandler(SocketServer.BaseRequestHandler):
       f.truncate()
       # receive data from remote socket
       modified = True
+      censorable = False
       try:
         first_data = True
         while 1:
           data = self.remote.recv(BUFFER_SIZE)
 
-          if first_data and Response(data).status == 304:
-            # if the first data is 304 (Not modified)
-            modified = False
-            break
-          elif data:
+          if first_data:
+            response = Response(data)
+            
+            # check if this file censorable
+            try:
+              content_type = response.getheader('Content-Type')
+              if content_type.startswith('text/html'):
+                censorable = True
+              if content_type.startswith('text/plain'):
+                censorable = True
+            except:
+              pass
+
+            if response.status == 304:
+              # if the first data is 304 (Not modified)
+              modified = False
+              break
+          
+          if data:
             f.write(data)
           else:
             break
@@ -69,7 +100,8 @@ class ProxyRequestHandler(SocketServer.BaseRequestHandler):
 
       if not in_cache or (in_cache and in_cache[0] < timestamp):
         self.cache_manifest[md5] = (timestamp, hash)
-        print md5
+        if censorable:
+          self.censor(hash)
 
 
   def handle(self):
@@ -123,6 +155,14 @@ class ProxyRequestHandler(SocketServer.BaseRequestHandler):
 if __name__ == '__main__':
   if len(sys.argv) == 2:
     PROXY_PORT = int(sys.argv[1])
+
+  # import censor list
+  try:
+    with open(CENSOR_FILE, 'r') as f:
+      for word in f:
+        censor_list.append(re.compile(re.escape(word.strip()), re.IGNORECASE))
+  except:
+    pass
 
   server = SocketServer.ThreadingTCPServer((PROXY_HOST, PROXY_PORT), ProxyRequestHandler)
   server.allow_reuse_address=True
