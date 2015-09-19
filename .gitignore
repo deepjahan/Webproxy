@@ -1,4 +1,2 @@
 *.pyc
-proxy.py
-parser.py
-imbos.py
+.DS_Store
