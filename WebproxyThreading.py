@@ -14,9 +14,13 @@ class ProxyRequestHandler(SocketServer.BaseRequestHandler):
 
   cache_manifest = {}
 
-  def request_from_cache(self, md5):
+
+  def get_from_cache(self, md5):
     self.remote.close()
-    with open(md5, 'r') as f:
+
+    timestamp, hash = self.cache_manifest[md5]
+
+    with open(hash, 'r') as f:
       while 1:
         data = f.read(BUFFER_SIZE)
         if data:
@@ -26,52 +30,46 @@ class ProxyRequestHandler(SocketServer.BaseRequestHandler):
       self.request.close()
 
 
-  def request_and_cache(self, md5, message):
+  def cache_response(self, md5, message, timestamp):
+
     # send the http request
     self.remote.send(message)
 
-    # cache available but not ready
-    self.cache_manifest[md5] = False
+    # combine md5 and timestamp to create random hash
+    hash = hashlib.md5(md5 + str(timestamp)).hexdigest()
 
-    with open(md5, 'w') as f:
+    with open(hash, 'w') as f:
       f.seek(0)
       f.truncate()
       # receive data from remote socket
+      modified = True
       try:
+        first_data = True
         while 1:
           data = self.remote.recv(BUFFER_SIZE)
-          if data:
-            self.request.send(data)
+
+          if first_data and Response(data).status == 304:
+            # if the first data is 304 (Not modified)
+            modified = False
+            break
+          elif data:
             f.write(data)
           else:
             break
+
+          first_data = False
       except socket.error:
         pass
 
       self.remote.close()
-      self.request.close()
-
-    # cache available and ready
-    self.cache_manifest[md5] = True
     
+    if modified:
+      # if not modified
+      in_cache = self.cache_manifest.get(md5, None)
 
-  def request_only(self, message):
-    # send the http request
-    self.remote.send(message)
-
-    # receive data from remote socket
-    try:
-      while 1:
-        data = self.remote.recv(BUFFER_SIZE)
-        if data:
-          self.request.send(data)
-        else:
-          break
-    except socket.error:
-      pass
-
-    self.remote.close()
-    self.request.close()
+      if not in_cache or (in_cache and in_cache[0] < timestamp):
+        self.cache_manifest[md5] = (timestamp, hash)
+        print md5
 
 
   def handle(self):
@@ -80,14 +78,11 @@ class ProxyRequestHandler(SocketServer.BaseRequestHandler):
       # get the http request string
       httpRequest = self.request.recv(BUFFER_SIZE)
 
-      print httpRequest
-
       if not httpRequest:
         self.request.close()
         return
       # get information about the request
       requestInfo = Request(httpRequest, self.client_address).get_info()
-
 
       try:
         # make connection with remote address
@@ -97,19 +92,19 @@ class ProxyRequestHandler(SocketServer.BaseRequestHandler):
         self.remote.settimeout(3.0)
         # request
 
-        hash = str(hashlib.md5(httpRequest).hexdigest())
+        md5 = str(hashlib.md5(httpRequest).hexdigest())
 
-        if self.cache_manifest.get(hash, None):
-          print '### get from cache'
-          self.request_from_cache(hash)
-        elif requestInfo.get('method', '') == 'GET' and self.cache_manifest.get(hash, None) is None:
-          print '### get and cache'
-          self.request_and_cache(hash, httpRequest)
-          print '### done caching'
-        else:
-          print '### get only'
-          self.request_only(httpRequest)
-          print '### done get'
+        in_cache = self.cache_manifest.get(md5, None)
+
+        # check if cache available
+        if in_cache and requestInfo['method'] == 'GET':
+          # check if modified, only check on get method
+          httpRequest = httpRequest[:-2] + 'If-Modified-Since: '+Request().date_time_string(in_cache[0])+'\r\n\r\n'
+        
+        self.cache_response(md5, httpRequest, requestInfo['time'])
+        self.get_from_cache(md5)
+        self.request.close()
+
         
       except socket.error as msg:
         print '### socket error', msg 

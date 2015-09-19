@@ -2,9 +2,7 @@ from BaseHTTPServer import BaseHTTPRequestHandler
 from StringIO import StringIO
 from httplib import HTTPResponse
 from urlparse import urlparse
-from wsgiref.handlers import format_date_time
-from datetime import datetime
-from time import mktime
+import time
 
 class Request(BaseHTTPRequestHandler):
   def __init__(self, request_text='', client=('', 80)):
@@ -33,6 +31,7 @@ class Request(BaseHTTPRequestHandler):
     info['port'] = url.port or 80
     info['path'] = self.path
     info['method'] = self.command
+    info['time'] = time.time()
     return info
 
   def get_error(self, code):
