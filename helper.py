@@ -19,6 +19,26 @@ class Request(BaseHTTPRequestHandler):
   def log_message(self, format, *args):
     pass
 
+  def get_info(self):
+    # parse host
+    try:
+      hostUrl = 'http://' + self.headers['host']
+      url = urlparse(hostUrl)
+    except:
+      return {}
+
+    info = {}
+    # get hostname, port, path, method
+    info['host'] = url.hostname
+    info['port'] = url.port or 80
+    info['path'] = self.path
+    info['method'] = self.command
+    return info
+
+  def get_error(self, code):
+    self.send_error(code)
+    return self.wfile.getvalue()
+
 class FakeSocket():
   def __init__(self, response_str):
     self._file = StringIO(response_str)
@@ -31,15 +51,7 @@ class Response(HTTPResponse):
     HTTPResponse.__init__(self, source)
     self.begin()
 
-def get_error(code):
-  request = Request()
-  request.send_error(code)
-  return request.wfile.getvalue()
 
-from urlparse import urlparse
-from wsgiref.handlers import format_date_time
-from datetime import datetime
-from time import mktime
 
 # Request
 # error_code 
