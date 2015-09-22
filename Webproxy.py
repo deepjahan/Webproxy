@@ -20,10 +20,27 @@ class ProxyRequestHandler(SocketServer.BaseRequestHandler):
 
   def censor(self, file_name):
     data = ''
+    header = ''
+    content = ''
     with open(file_name, 'r') as f:
       data = f.read()
-      for word_re in censor_list:
-        data = word_re.sub('---', data)
+
+      headerIndex = data.find("\r\n\r\n");
+      if headerIndex > -1:
+        header = data[:headerIndex]
+        content = data[headerIndex:]
+
+        for word_re in censor_list:
+          content = word_re.sub('---', content)
+
+        content_length = len(content)-4; # minus \r\n\r\n
+        header = re.sub("Content-Length: \\d+\r\n", "Content-Length: %d\r\n" % content_length, header)
+        
+        data = header+content
+      else:
+        for word_re in censor_list:
+          data = word_re.sub('---', data)
+
 
     with open(file_name, 'w') as f:
       f.seek(0)
@@ -100,7 +117,7 @@ class ProxyRequestHandler(SocketServer.BaseRequestHandler):
 
       if not in_cache or (in_cache and in_cache[0] < timestamp):
         self.cache_manifest[md5] = (timestamp, hash)
-        if censorable:
+        if censorable and len(self.cache_manifest) > 0:
           self.censor(hash)
 
 
@@ -139,7 +156,6 @@ class ProxyRequestHandler(SocketServer.BaseRequestHandler):
 
         
       except socket.error as msg:
-        print '### socket error', msg 
         # send 502 message
         if self.request:
           self.request.send(Request().get_error(502))
@@ -164,8 +180,8 @@ if __name__ == '__main__':
   except:
     pass
 
+  SocketServer.ThreadingTCPServer.allow_reuse_address=True
   server = SocketServer.ThreadingTCPServer((PROXY_HOST, PROXY_PORT), ProxyRequestHandler)
-  server.allow_reuse_address=True
   try:
     server.serve_forever()
   except KeyboardInterrupt:
