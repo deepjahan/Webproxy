@@ -111,7 +111,7 @@ class ProxyRequestHandler(SocketServer.BaseRequestHandler):
 
       self.remote.close()
     
-    if modified:
+    if modified or self.cache_manifest.get(md5, None) is None:
       # if not modified
       in_cache = self.cache_manifest.get(md5, None)
 
